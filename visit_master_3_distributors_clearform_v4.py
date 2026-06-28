@@ -95,15 +95,18 @@ VISIT_PROFILES = {
 # REMOTE FILES REGISTRY
 # ============================================================
 
-# ضيف كل ملف محتاج يتنزل لو مش موجود محلياً
-REMOTE_FILES[EXCEL_FILE] = ""
-REMOTE_FILES[MARKET_CREDIT_FILE] = ""
-REMOTE_FILES[EXPENSES_APPROVAL_FILE] = ""
-REMOTE_FILES[CR_NOTE_FILE] = ""
+# روابط تحميل مباشر من OneDrive (ضيف &download=1 في الآخر)
+REMOTE_FILES[EXCEL_FILE] = "https://savolagroup-my.sharepoint.com/:x:/r/personal/aelsamnoudi_savola_com/Documents/visits/VISIT%20DIST.xlsm?d=wf48861ed017e475d80be6725621a5607&csf=1&web=1&e=o59H1b&download=1"
+REMOTE_FILES[MARKET_CREDIT_FILE] = "https://savolagroup-my.sharepoint.com/:x:/r/personal/aelsamnoudi_savola_com/Documents/AuditDistCloud/Input/Market%20credit%202022%20v2%20Delta%20A.xlsx?d=wc397ca82cab54f9da96fb3c953ddaed5&csf=1&web=1&e=79ziRq&download=1"
+REMOTE_FILES[EXPENSES_APPROVAL_FILE] = "https://savolagroup-my.sharepoint.com/:x:/r/personal/aelsamnoudi_savola_com/Documents/AuditDistCloud/Input/Expenses%20Aproval.xlsx?d=w736099e246c044d3aed336e66850444d&csf=1&web=1&e=r4NHhT&download=1"
+REMOTE_FILES[CR_NOTE_FILE] = "https://savolagroup-my.sharepoint.com/:x:/r/personal/aelsamnoudi_savola_com/Documents/AuditDistCloud/Input/CR.%20Note.xlsx?d=w2269a5a0c4524dc3bd9da1e05e3d1549&csf=1&web=1&e=gibNiG&download=1"
 
-for _code, _profile in VISIT_PROFILES.items():
-    REMOTE_FILES[_profile["mk_file"]] = ""
-    REMOTE_FILES[_profile["kh_file"]] = ""
+REMOTE_FILES[VISIT_PROFILES["BLQ"]["mk_file"]] = "https://savolagroup-my.sharepoint.com/:i:/r/personal/aelsamnoudi_savola_com/Documents/visits/MKBLQ.jpeg?csf=1&web=1&e=9OEDvR&download=1"
+REMOTE_FILES[VISIT_PROFILES["BLQ"]["kh_file"]] = "https://savolagroup-my.sharepoint.com/:i:/r/personal/aelsamnoudi_savola_com/Documents/visits/KHBLQ.jpeg?csf=1&web=1&e=oM0ITc&download=1"
+REMOTE_FILES[VISIT_PROFILES["AGA"]["mk_file"]] = "https://savolagroup-my.sharepoint.com/:i:/r/personal/aelsamnoudi_savola_com/Documents/visits/MKAGA.jpeg?csf=1&web=1&e=oufLGW&download=1"
+REMOTE_FILES[VISIT_PROFILES["AGA"]["kh_file"]] = "https://savolagroup-my.sharepoint.com/:i:/r/personal/aelsamnoudi_savola_com/Documents/visits/KHAGA.jpeg?csf=1&web=1&e=YvkwQ2&download=1"
+REMOTE_FILES[VISIT_PROFILES["DAM"]["mk_file"]] = "https://savolagroup-my.sharepoint.com/:i:/r/personal/aelsamnoudi_savola_com/Documents/visits/MKDAM.jpeg?csf=1&web=1&e=tf8X5E&download=1"
+REMOTE_FILES[VISIT_PROFILES["DAM"]["kh_file"]] = "https://savolagroup-my.sharepoint.com/:i:/r/personal/aelsamnoudi_savola_com/Documents/visits/KHDAM.jpeg?csf=1&web=1&e=Ywooiz&download=1"
 
 
 def ensure_file_available(file_path):
