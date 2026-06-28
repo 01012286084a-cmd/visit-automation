@@ -1,11 +1,8 @@
 import os
 import re
-import sys
-import time
 from datetime import datetime, date, timedelta
 from openpyxl import load_workbook
 from playwright.sync_api import sync_playwright
-import win32com.client as win32
 
 # ============================================================
 # CONFIG
@@ -13,27 +10,29 @@ import win32com.client as win32
 
 FORM_URL = "https://forms.office.com/Pages/ResponsePage.aspx?id=kA3onZv_-UK1DjonUZ3sfA2XrmPVXLJIlfHya3C-kcBUNVY1WkxNWjFMVTFEMDVSSU5FVkJPR0MyQS4u&origin=Invitation&channel=0"
 
-BASE_DIR = r"D:\Automate\FormVisits"
+BASE_DIR = r"D:\Automate\FormVisits" if not CLOUD_MODE else os.path.join(os.path.dirname(__file__), "data")
 USER_DATA_DIR = os.path.join(BASE_DIR, "user_data")
 SCREENSHOT_DIR = os.path.join(BASE_DIR, "screenshots")
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 
-EXCEL_FILE = r"D:\OneDrive - The Savola Group\visits\VISIT DIST.xlsm"
+EXCEL_FILE = r"D:\OneDrive - The Savola Group\visits\VISIT DIST.xlsm" if not CLOUD_MODE else os.path.join(BASE_DIR, "VISIT DIST.xlsm")
 SCHEDULE_SHEET_NAME = "Schedule"
 SCHEDULE_CODE_COLUMN = 3  # Column C
 
 # ملفات مشتركة بين كل الزيارات
-MARKET_CREDIT_FILE = r"D:\OneDrive - The Savola Group\AuditDistCloud\Input\Market credit 2022 v2 Delta A.xlsx"
-EXPENSES_APPROVAL_FILE = r"D:\OneDrive - The Savola Group\AuditDistCloud\Input\Expenses Aproval.xlsx"
-CR_NOTE_FILE = r"D:\OneDrive - The Savola Group\AuditDistCloud\Input\CR. Note.xlsx"
+_DATA_DIR = r"D:\OneDrive - The Savola Group\AuditDistCloud\Input" if not CLOUD_MODE else BASE_DIR
+MARKET_CREDIT_FILE = os.path.join(_DATA_DIR, "Market credit 2022 v2 Delta A.xlsx")
+EXPENSES_APPROVAL_FILE = os.path.join(_DATA_DIR, "Expenses Aproval.xlsx")
+CR_NOTE_FILE = os.path.join(_DATA_DIR, "CR. Note.xlsx")
+
 
 # ============================================================
 # SAFETY SWITCHES
 # ============================================================
 
 # خليه False طول مرحلة الاختبار.
-# لما تراجع الفورم وتتأكد 100% غيره إلى True للإرسال الحقيقي.
-SUBMIT = False
+# في السحابة بتتظبط auto من GitHub Actions (env: SUBMIT=true)
+SUBMIT = os.environ.get("SUBMIT", "false").lower() == "true"
 
 # تعليم مربع إرسال نسخة على الإيميل
 SEND_EMAIL_RECEIPT = True
@@ -47,10 +46,13 @@ STRICT_CLEAR_FORM_REQUIRED = True
 # مع STRICT_CLEAR_FORM_REQUIRED=True لا ننصح بالـ fallback لأنه لا يمسح المرفقات
 FALLBACK_MANUAL_CLEAR_IF_TOP_CLEAR_FAILS = False
 
-# تحديث ملف Excel قبل قراءة Schedule وقبل تعبئة الفورم
-REFRESH_EXCEL_BEFORE_RUN = True
-SAVE_AFTER_REFRESH = True
-REFRESH_TIMEOUT_SECONDS = 300
+# مود السحابة: بيخفي الـ input() وبيستعمل headless browser
+# GitHub Actions بيظبط automatic، لو شغال محليًا غيّره لـ False
+CLOUD_MODE = os.environ.get("GITHUB_ACTIONS") == "true"
+
+# روابط تحميل الملفات من OneDrive للسحابة (لو الملف مش موجود محلياً)
+# اعمل share link لكل ملف وضيفه هنا — المفتاح هو المسار المحلي، القيمة هي رابط التحميل
+REMOTE_FILES = {}
 
 VISIT_DATE = f"{datetime.now().month}/{datetime.now().day}/{datetime.now().year}"
 RUN_TIME = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -66,26 +68,72 @@ LOG_FILE = os.path.join(LOG_DIR, f"visit_master_{CURRENT_CODE}_{RUN_TIME}.log")
 # VISIT PROFILES - BLQ / AGA / DAM
 # ============================================================
 
+_VISITS_DIR = r"D:\OneDrive - The Savola Group\visits" if not CLOUD_MODE else BASE_DIR
+
 VISIT_PROFILES = {
     "BLQ": {
         "sheet_name": "BLQ",
         "distributor": "Dakahlia - Al Yasmine",
-        "mk_file": r"D:\OneDrive - The Savola Group\visits\MKBLQ.jpeg",
-        "kh_file": r"D:\OneDrive - The Savola Group\visits\KHBLQ.jpeg",
+        "mk_file": os.path.join(_VISITS_DIR, "MKBLQ.jpeg"),
+        "kh_file": os.path.join(_VISITS_DIR, "KHBLQ.jpeg"),
     },
     "AGA": {
         "sheet_name": "AGA",
         "distributor": "Dakahlia Aga – Al Yasmine",
-        "mk_file": r"D:\OneDrive - The Savola Group\visits\MKAGA.jpeg",
-        "kh_file": r"D:\OneDrive - The Savola Group\visits\KHAGA.jpeg",
+        "mk_file": os.path.join(_VISITS_DIR, "MKAGA.jpeg"),
+        "kh_file": os.path.join(_VISITS_DIR, "KHAGA.jpeg"),
     },
     "DAM": {
         "sheet_name": "DAM",
         "distributor": "Damietta - Khaled Ismaiel Al-Fath",
-        "mk_file": r"D:\OneDrive - The Savola Group\visits\MKDAM.jpeg",
-        "kh_file": r"D:\OneDrive - The Savola Group\visits\KHDAM.jpeg",
+        "mk_file": os.path.join(_VISITS_DIR, "MKDAM.jpeg"),
+        "kh_file": os.path.join(_VISITS_DIR, "KHDAM.jpeg"),
     },
 }
+
+# ============================================================
+# REMOTE FILES REGISTRY
+# ============================================================
+
+# ضيف كل ملف محتاج يتنزل لو مش موجود محلياً
+REMOTE_FILES[EXCEL_FILE] = ""
+REMOTE_FILES[MARKET_CREDIT_FILE] = ""
+REMOTE_FILES[EXPENSES_APPROVAL_FILE] = ""
+REMOTE_FILES[CR_NOTE_FILE] = ""
+
+for _code, _profile in VISIT_PROFILES.items():
+    REMOTE_FILES[_profile["mk_file"]] = ""
+    REMOTE_FILES[_profile["kh_file"]] = ""
+
+
+def ensure_file_available(file_path):
+    """لو الملف مش موجود محلياً، نحمله من رابط OneDrive"""
+    if os.path.exists(file_path):
+        return file_path
+
+    url = REMOTE_FILES.get(file_path, "")
+    if not url:
+        raise FileNotFoundError(
+            f"File not found locally and no remote URL configured: {file_path}\n"
+            f"Add its OneDrive share link to REMOTE_FILES in the script."
+        )
+
+    log(f"Downloading {file_path} from {url}")
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    try:
+        import requests
+        resp = requests.get(url, timeout=120, allow_redirects=True)
+        resp.raise_for_status()
+        with open(file_path, "wb") as f:
+            f.write(resp.content)
+        log(f"Downloaded successfully: {file_path} ({len(resp.content)} bytes)")
+        return file_path
+    except ImportError:
+        raise Exception("requests library required for downloading files. Run: pip install requests")
+    except Exception as e:
+        raise Exception(f"Failed to download {file_path} from {url}: {e}")
+
 
 # ============================================================
 # LOGGING + HELPERS
@@ -186,147 +234,62 @@ def excel_value_to_date(value):
     return None
 
 # ============================================================
-# EXCEL REFRESH + SCHEDULE READER
+# SCHEDULE READER (openpyxl — no Excel required)
 # ============================================================
-
-def wait_for_excel_refresh_done(excel_app, timeout_seconds=300):
-    log("Waiting for Excel refresh/calculation to finish...")
-    start_time = time.time()
-
-    while True:
-        try:
-            excel_app.CalculateUntilAsyncQueriesDone()
-        except Exception:
-            pass
-
-        try:
-            if excel_app.CalculationState == 0:
-                log("Excel calculation state is done.")
-                return
-        except Exception:
-            pass
-
-        if time.time() - start_time > timeout_seconds:
-            log(f"WARNING: Refresh wait timeout after {timeout_seconds} seconds.")
-            return
-
-        time.sleep(2)
-
 
 def refresh_workbook_and_get_today_code():
     """
-    يفتح ملف VISIT DIST.xlsm
-    يعمل Refresh لكل اللينكات والـ Power Query والـ Pivot Tables
-    ثم يدخل شيت Schedule ويبحث عن تاريخ اليوم
-    ويقرأ كود الزيارة من العمود C في نفس الصف.
+    يقرأ شيت Schedule من ملف Excel مباشرة بـ openpyxl
+    (بدون COM — شغال على Linux)
+    ملاحظة: Power Query / Pivot Refresh يحتاج Excel نفسه؛
+    تأكد أن الملف محدث قبل رفعه للسحابة.
     """
-    if not os.path.exists(EXCEL_FILE):
-        raise FileNotFoundError(f"Excel file not found: {EXCEL_FILE}")
+    ensure_file_available(EXCEL_FILE)
 
     today = datetime.now().date()
     log(f"Today date = {today.strftime('%d/%m/%Y')}")
 
-    excel = win32.DispatchEx("Excel.Application")
-    excel.Visible = False
-    excel.DisplayAlerts = False
-    excel.AskToUpdateLinks = False
+    wb = load_workbook(EXCEL_FILE, data_only=True, keep_vba=True)
 
-    wb = None
+    if SCHEDULE_SHEET_NAME not in wb.sheetnames:
+        raise Exception(f"Sheet not found: {SCHEDULE_SHEET_NAME}. Available: {wb.sheetnames}")
 
-    try:
-        log(f"Opening workbook: {EXCEL_FILE}")
-        wb = excel.Workbooks.Open(EXCEL_FILE, UpdateLinks=3, ReadOnly=False)
+    ws = wb[SCHEDULE_SHEET_NAME]
+    matches = []
 
-        if REFRESH_EXCEL_BEFORE_RUN:
-            log("Refreshing all workbook connections...")
-            wb.RefreshAll()
-            wait_for_excel_refresh_done(excel, REFRESH_TIMEOUT_SECONDS)
+    for row in range(1, ws.max_row + 1):
+        row_has_today = False
+        for col in range(1, ws.max_column + 1):
+            cell_date = excel_value_to_date(ws.cell(row, col).value)
+            if cell_date == today:
+                row_has_today = True
+                break
 
-            log("Refreshing pivot tables manually...")
-            for sheet in wb.Worksheets:
-                try:
-                    pivot_tables = sheet.PivotTables()
-                    pivot_count = pivot_tables.Count
-                    for i in range(1, pivot_count + 1):
-                        try:
-                            pt = pivot_tables.Item(i)
-                            pt.PivotCache().Refresh()
-                            pt.RefreshTable()
-                            log(f"Pivot refreshed: Sheet={sheet.Name}, PivotIndex={i}")
-                        except Exception as e:
-                            log(f"WARNING: Failed to refresh pivot: Sheet={sheet.Name}, PivotIndex={i}, Error={e}")
-                except Exception:
-                    pass
+        if row_has_today:
+            raw_code = ws.cell(row, SCHEDULE_CODE_COLUMN).value
+            code = normalize_code(raw_code)
+            log(f"Today's date found in row {row}. Column C raw = {raw_code}, code = {code}")
+            if code:
+                matches.append((row, code))
+            else:
+                log(f"WARNING: Row {row} has today's date but column C is empty.")
 
-            try:
-                excel.CalculateFullRebuild()
-            except Exception:
-                pass
+    if not matches:
+        raise Exception(f"No visit code found for today's date {today.strftime('%d/%m/%Y')} in Schedule.")
 
-            wait_for_excel_refresh_done(excel, REFRESH_TIMEOUT_SECONDS)
+    if len(matches) > 1:
+        log("WARNING: More than one row found for today. First will be used.")
+        for row, code in matches:
+            log(f"Found: row={row}, code={code}")
 
-            if SAVE_AFTER_REFRESH:
-                log("Saving workbook after refresh...")
-                wb.Save()
+    selected_code = matches[0][1]
+    log(f"Selected visit code: {selected_code}")
 
-        log(f"Reading schedule sheet: {SCHEDULE_SHEET_NAME}")
+    if selected_code not in VISIT_PROFILES:
+        valid_codes = ", ".join(sorted(VISIT_PROFILES.keys()))
+        raise Exception(f"Invalid visit code in Schedule column C: {selected_code}. Valid codes: {valid_codes}")
 
-        try:
-            ws = wb.Worksheets(SCHEDULE_SHEET_NAME)
-        except Exception:
-            raise Exception(f"Sheet not found: {SCHEDULE_SHEET_NAME}")
-
-        used_range = ws.UsedRange
-        rows_count = used_range.Rows.Count
-        cols_count = used_range.Columns.Count
-
-        log(f"Schedule used range: rows={rows_count}, cols={cols_count}")
-
-        matches = []
-
-        for row in range(1, rows_count + 1):
-            row_has_today = False
-
-            for col in range(1, cols_count + 1):
-                cell_date = excel_value_to_date(ws.Cells(row, col).Value)
-                if cell_date == today:
-                    row_has_today = True
-                    break
-
-            if row_has_today:
-                raw_code = ws.Cells(row, SCHEDULE_CODE_COLUMN).Value
-                code = normalize_code(raw_code)
-                log(f"Today's date found in row {row}. Column C raw value = {raw_code}, normalized code = {code}")
-
-                if code:
-                    matches.append((row, code))
-                else:
-                    log(f"WARNING: Row {row} has today's date but column C is empty.")
-
-        if not matches:
-            raise Exception(f"No visit code found for today's date {today.strftime('%d/%m/%Y')} in Schedule.")
-
-        if len(matches) > 1:
-            log("WARNING: More than one row found for today. First row will be used.")
-            for row, code in matches:
-                log(f"Found: row={row}, code={code}")
-
-        selected_row, selected_code = matches[0]
-        log(f"Selected visit code from row {selected_row}: {selected_code}")
-
-        if selected_code not in VISIT_PROFILES:
-            valid_codes = ", ".join(sorted(VISIT_PROFILES.keys()))
-            raise Exception(f"Invalid visit code in Schedule column C: {selected_code}. Valid codes: {valid_codes}")
-
-        return selected_code
-
-    finally:
-        if wb is not None:
-            log("Closing workbook...")
-            wb.Close(SaveChanges=SAVE_AFTER_REFRESH if REFRESH_EXCEL_BEFORE_RUN else False)
-
-        log("Closing Excel application...")
-        excel.Quit()
+    return selected_code
 
 # ============================================================
 # FORM MAP BUILDER
@@ -1034,8 +997,11 @@ def upload_file_to_question(page, question_number, file_path):
         return
 
     if not os.path.exists(file_path):
-        log(f"Q{question_number}: WARNING file not found -> skipped: {file_path}")
-        return
+        try:
+            ensure_file_available(file_path)
+        except Exception:
+            log(f"Q{question_number}: WARNING file not found -> skipped: {file_path}")
+            return
 
     question = scroll_to_question(page, question_number)
     file_locator = question.locator('input[type="file"]')
@@ -1190,8 +1156,7 @@ def run_visit_form(code):
     log(f"STRICT_CLEAR_FORM_REQUIRED = {STRICT_CLEAR_FORM_REQUIRED}")
     log(f"Excel file = {EXCEL_FILE}")
 
-    if not os.path.exists(EXCEL_FILE):
-        raise FileNotFoundError(f"Excel file not found: {EXCEL_FILE}")
+    ensure_file_available(EXCEL_FILE)
 
     wb = load_workbook(EXCEL_FILE, data_only=True, keep_vba=True)
 
@@ -1203,8 +1168,8 @@ def run_visit_form(code):
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
             user_data_dir=USER_DATA_DIR,
-            channel="msedge",
-            headless=False,
+            channel="msedge" if not CLOUD_MODE else "chromium",
+            headless=CLOUD_MODE,
             viewport={"width": 1366, "height": 768},
             args=[
                 "--disable-blink-features=AutomationControlled",
@@ -1257,7 +1222,8 @@ def run_visit_form(code):
         print("SUBMIT = True")
         print("")
 
-        input("Press Enter to close browser...")
+        if not CLOUD_MODE:
+            input("Press Enter to close browser...")
         context.close()
 
     log("========== END VISIT FORM FILL ==========")
@@ -1281,7 +1247,8 @@ def main():
     except Exception as e:
         log(f"ERROR: {e}")
         log("========== MASTER VISIT AUTOMATION FAILED ==========")
-        input("Press Enter to close...")
+        if not CLOUD_MODE:
+            input("Press Enter to close...")
         raise
 
 
