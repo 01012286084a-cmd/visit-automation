@@ -1,0 +1,19 @@
+name: Visit Automation
+
+on:
+  schedule:
+    - cron: '30 7 * * *'   # 9:30 صباحاً بتوقيت مصر (7:30 UTC)
+  workflow_dispatch:        # عشان تشغله يدوي من GitHub
+
+jobs:
+  run-visit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install openpyxl playwright
+      - run: playwright install chromium
+      - run: sudo apt install -y xvfb
+      - run: xvfb-run python visit_master_3_distributors_clearform_v4.py
