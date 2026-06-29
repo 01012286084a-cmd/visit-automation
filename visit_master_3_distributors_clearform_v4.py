@@ -8,6 +8,10 @@ from playwright.sync_api import sync_playwright
 # CONFIG
 # ============================================================
 
+# مود السحابة: بيخفي الـ input() وبيستعمل headless browser
+# GitHub Actions بيظبط automatic، لو شغال محليًا غيّره لـ False
+CLOUD_MODE = os.environ.get("GITHUB_ACTIONS") == "true"
+
 FORM_URL = "https://forms.office.com/Pages/ResponsePage.aspx?id=kA3onZv_-UK1DjonUZ3sfA2XrmPVXLJIlfHya3C-kcBUNVY1WkxNWjFMVTFEMDVSSU5FVkJPR0MyQS4u&origin=Invitation&channel=0"
 
 BASE_DIR = r"D:\Automate\FormVisits" if not CLOUD_MODE else os.path.join(os.path.dirname(__file__), "data")
@@ -45,10 +49,6 @@ STRICT_CLEAR_FORM_REQUIRED = True
 
 # مع STRICT_CLEAR_FORM_REQUIRED=True لا ننصح بالـ fallback لأنه لا يمسح المرفقات
 FALLBACK_MANUAL_CLEAR_IF_TOP_CLEAR_FAILS = False
-
-# مود السحابة: بيخفي الـ input() وبيستعمل headless browser
-# GitHub Actions بيظبط automatic، لو شغال محليًا غيّره لـ False
-CLOUD_MODE = os.environ.get("GITHUB_ACTIONS") == "true"
 
 # روابط تحميل الملفات من OneDrive للسحابة (لو الملف مش موجود محلياً)
 # اعمل share link لكل ملف وضيفه هنا — المفتاح هو المسار المحلي، القيمة هي رابط التحميل
